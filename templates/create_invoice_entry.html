@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Invoice - Accounting Software</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <!-- Custom styles -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+        }
+        .navbar {
+            margin-bottom: 1.5rem;
+        }
+        .navbar-nav a {
+            color: #fff !important;
+        }
+        .navbar-nav a:hover {
+            color: #ddd !important;
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .card {
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            padding: 2rem;
+            background: #fff;
+        }
+        .formset-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+        .formset-table th, .formset-table td {
+            border: 1px solid #dee2e6;
+            padding: 0.5rem;
+            text-align: left;
+        }
+        .formset-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .formset-table td {
+            background-color: #fff;
+        }
+        .formset-table input, .formset-table select {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .form-group.mt-4 {
+            display: flex;
+            align-items: center;
+        }
+        .form-control-tax {
+            width: 40%;
+        }
+        .btn-primary, .btn-success {
+            border-radius: 20px;
+        }
+        .hidden {
+            display: none;
+        }
+        .btn-remove {
+            border: none;
+            background: none;
+            color: #dc3545;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .btn-remove:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'home' %}">Accounting Software</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ml-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'home' %}">Home</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="card">
+            <h2 class="card-title mb-4">Create Invoice</h2>
+            <form method="post" action="{% url 'create_invoice' %}">
+                {% csrf_token %}
+                <div class="form-group mb-4">
+                    {{ form.as_p }}
+                </div>
+                <div class="form-group mb-4">
+                    {{ formset.management_form }}
+                    <div class="form-group mt-4">
+                        <label for="id_tax">Tax:</label>
+                        <input type="text" id="id_tax" name="tax" readonly class="form-control form-control-tax">
+                    </div>
+                    <!-- Hidden field for invoice status -->
+                    <input type="hidden" id="invoice-status" value="{{ form.instance.status }}">
+                </div>
+                
+                <table class="formset-table">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Description</th>
+                            <th>Quantity</th>
+                            <th>Unit Price</th>
+                            <th>Taxable</th>
+                            <th>GST (%)</th>
+                            <th>Amount Before Tax</th>
+                            <th>Amount After Tax</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="invoice-line-items">
+                        {% for form in formset %}
+                            <tr class="{% if forloop.counter > 5 %}hidden{% endif %}">
+                                <td>{{ form.product }}</td>
+                                <td>{{ form.description }}</td>
+                                <td>{{ form.quantity }}</td>
+                                <td>{{ form.unit_price }}</td>
+                                <td>{{ form.taxable }}</td>
+                                <td>{{ form.gst_percentage }}</td>
+                                <td>{{ form.amount_before_tax }}</td>
+                                <td>{{ form.amount_after_tax }}</td>
+                                <td><button type="button" class="btn btn-danger" onclick="removeForm(this)">Remove</button></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="form-group mt-4">
+                    <button type="button" class="btn btn-primary" id="show-more">Show more</button>
+                </div>
+                
+                <button type="submit" class="btn btn-success mt-3" id="save-invoice">Save Invoice</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS, Popper.js, and jQuery -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            let visibleForms = 5;
+            const formsPerPage = 5;
+
+            function updateUnitPrice(event) {
+                var row = event.target.closest('tr');
+                var priceText = event.target.options[event.target.selectedIndex].textContent.split('- $')[1];
+                var unitPriceInput = row.querySelector('input[name$=unit_price]');
+                if (unitPriceInput) {
+                    unitPriceInput.value = priceText || '';
+                    updateAmountBeforeTax(row);
+                }
+            }
+
+            function updateAmountBeforeTax(row) {
+                var quantityInput = row.querySelector('input[name$=quantity]');
+                var unitPriceInput = row.querySelector('input[name$=unit_price]');
+                var amountBeforeTaxInput = row.querySelector('input[name$=amount_before_tax]');
+                if (quantityInput && unitPriceInput && amountBeforeTaxInput) {
+                    var quantity = parseFloat(quantityInput.value) || 0;
+                    var unitPrice = parseFloat(unitPriceInput.value) || 0;
+                    var amountBeforeTax = quantity * unitPrice;
+                    amountBeforeTaxInput.value = amountBeforeTax.toFixed(2);
+                    updateAmountAfterTax(row);
+                }
+            }
+
+            function updateAmountAfterTax(row) {
+                var amountBeforeTaxInput = row.querySelector('input[name$=amount_before_tax]');
+                var gstPercentageInput = row.querySelector('input[name$=gst_percentage]');
+                var taxableCheckbox = row.querySelector('input[name$=taxable]');
+                var amountAfterTaxInput = row.querySelector('input[name$=amount_after_tax]');
+                if (amountBeforeTaxInput && gstPercentageInput && taxableCheckbox && amountAfterTaxInput) {
+                    var amountBeforeTax = parseFloat(amountBeforeTaxInput.value) || 0;
+                    var gstPercentage = parseFloat(gstPercentageInput.value) || 0;
+                    var amountAfterTax = taxableCheckbox.checked ? amountBeforeTax + (amountBeforeTax * gstPercentage / 100) : amountBeforeTax;
+                    amountAfterTaxInput.value = amountAfterTax.toFixed(2);
+                }
+                updateTotalAmount(); // Ensure total amount is updated
+                updateGrandTotalTaxed(); // Ensure grand total taxed is updated
+                updateTax(); // Ensure tax is updated
+            }
+
+            function handleInputChange(event) {
+                var row = event.target.closest('tr');
+                if (row) {
+                    if (event.target.name.endsWith('taxable') || event.target.name.endsWith('gst_percentage') || event.target.name.endsWith('quantity') || event.target.name.endsWith('unit_price')) {
+                        updateAmountBeforeTax(row);
+                    }
+                }
+            }
+
+            function initializeEventListeners() {
+                document.querySelectorAll('select[name$=product]').forEach(function(select) {
+                    select.addEventListener('change', updateUnitPrice);
+                });
+
+                document.querySelectorAll('input[name$=quantity], input[name$=unit_price], input[name$=gst_percentage], input[name$=taxable], input[name$=amount_before_tax]').forEach(function(input) {
+                    input.addEventListener('input', handleInputChange);
+                });
+
+                document.querySelectorAll('input[name$=taxable]').forEach(function(checkbox) {
+                    checkbox.addEventListener('change', function(event) {
+                        var row = event.target.closest('tr');
+                        var gstPercentageInput = row.querySelector('input[name$=gst_percentage]');
+                        if (gstPercentageInput) {
+                            gstPercentageInput.disabled = !event.target.checked;
+                            if (!event.target.checked) {
+                                gstPercentageInput.value = ''; // Clear GST percentage if taxable is unchecked
+                            }
+                            updateAmountAfterTax(row);
+                        }
+                    });
+                });
+            }
+
+            function updateTotalAmount() {
+                var totalAmount = 0;
+                document.querySelectorAll('input[name$=amount_before_tax]').forEach(function(input) {
+                    totalAmount += parseFloat(input.value) || 0;
+                });
+                document.getElementById('id_total_amount').value = totalAmount.toFixed(2);
+            }
+
+            function updateGrandTotalTaxed() {
+                var grandTotal = 0;
+                document.querySelectorAll('input[name$=amount_after_tax]').forEach(function(input) {
+                    grandTotal += parseFloat(input.value) || 0;
+                });
+                document.getElementById('id_grand_total_taxed').value = grandTotal.toFixed(2);
+            }
+
+            function updateTax() {
+                var totalAmount = parseFloat(document.getElementById('id_total_amount').value) || 0;
+                var grandTotalTaxed = parseFloat(document.getElementById('id_grand_total_taxed').value) || 0;
+                var tax = grandTotalTaxed - totalAmount;
+                document.getElementById('id_tax').value = tax.toFixed(2);
+            }
+
+            function removeForm(button) {
+                button.closest('tr').remove();
+                updateTotalAmount();
+                updateGrandTotalTaxed(); // Ensure grand total taxed is updated after removing a row
+                updateTax(); // Ensure tax is updated
+            }
+
+            function toggleForms() {
+                const rows = document.querySelectorAll('#invoice-line-items tr');
+                let nextVisible = visibleForms + formsPerPage;
+
+                rows.forEach((row, index) => {
+                    if (index < visibleForms) {
+                        row.classList.remove('hidden');
+                    } else if (index < nextVisible) {
+                        row.classList.remove('hidden');
+                    } else {
+                        row.classList.add('hidden');
+                    }
+                });
+
+                visibleForms = nextVisible;
+                if (nextVisible >= rows.length) {
+                    document.getElementById('show-more').style.display = 'none';
+                }
+            }
+
+            function checkSaveButton() {
+                const status = document.getElementById('invoice-status').value;
+                const totalAmount = parseFloat(document.getElementById('id_total_amount').value) || 0;
+                const paidAmount = parseFloat(document.getElementById('id_paid_amount').value) || 0;
+                const saveButton = document.getElementById('save-invoice');
+                
+                if (status === 'Paid' && paidAmount < totalAmount) {
+                    saveButton.disabled = true;
+                    saveButton.title = 'Amount paid must be at least equal to the total amount when status is Paid.';
+                } else {
+                    saveButton.disabled = false;
+                    saveButton.title = '';
+                }
+            }
+
+            function handlePaidAmountChange(event) {
+                updateTotalAmount();
+                updateGrandTotalTaxed(); // Ensure grand total taxed is updated
+                updateTax(); // Ensure tax is updated
+                checkSaveButton();
+            }
+
+            // Initialize event listeners and show initial rows
+            initializeEventListeners();
+            toggleForms(); // Show initial rows
+            document.getElementById('show-more').addEventListener('click', toggleForms);
+            document.getElementById('id_paid_amount').addEventListener('input', handlePaidAmountChange);
+
+            // Perform initial check on page load
+            checkSaveButton();
+        });
+    </script>
+</body>
+</html>

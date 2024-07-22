@@ -1,0 +1,4 @@
+{{ invoice_formset.management_form }}
+{% for form in invoice_formset %}
+    {{ form.as_p }}
+{% endfor %}

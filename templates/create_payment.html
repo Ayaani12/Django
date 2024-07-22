@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Invoice and Payment</title>
+</head>
+<body>
+    <h2>Create Invoice Details and Payment</h2>
+
+    <form method="post" id="invoice-payment-form">
+        {% csrf_token %}
+        
+        <h3>Payment Information</h3>
+        {{ payment_form.as_p }}
+
+        <div class="form-row">
+            <label for="customer">Customer</label>
+            <select id="customer" name="customer">
+                <option value="">Select Customer</option>
+                {% for customer in customers %}
+                    <option value="{{ customer.id }}">{{ customer.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <h3>Invoice Details</h3>
+        <div id="invoice-details">
+            {{ detail_formset.management_form }}
+            {% for form in detail_formset %}
+                <div class="form-row">
+                    {{ form.as_p }}
+                    <button type="button" class="delete-row">Delete</button>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <button type="submit">Save</button>
+    </form>
+
+    <script>
+        document.getElementById('customer').addEventListener('change', function() {
+            const customerId = this.value;
+            if (customerId) {
+                fetch(`/Payments_Receive/get-invoice-details/${customerId}/`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        const invoiceDetailsContainer = document.getElementById('invoice-details');
+                        invoiceDetailsContainer.innerHTML = '';  // Clear existing details
+                        const managementForm = document.createElement('input');
+                        managementForm.type = 'hidden';
+                        managementForm.name = 'form-TOTAL_FORMS';
+                        managementForm.value = data.length;
+                        invoiceDetailsContainer.appendChild(managementForm);
+
+                        data.forEach((detail, index) => {
+                            const formRow = document.createElement('div');
+                            formRow.classList.add('form-row');
+
+                            for (const [key, value] of Object.entries(detail)) {
+                                if (key !== 'id' && key !== 'invoice') {
+                                    const input = document.createElement('input');
+                                    input.type = 'text';
+                                    input.name = `form-${index}-${key}`;
+                                    input.value = value;
+                                    formRow.appendChild(input);
+                                }
+                            }
+
+                            const deleteButton = document.createElement('button');
+                            deleteButton.type = 'button';
+                            deleteButton.classList.add('delete-row');
+                            deleteButton.textContent = 'Delete';
+                            formRow.appendChild(deleteButton);
+
+                            invoiceDetailsContainer.appendChild(formRow);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('There was a problem with the fetch operation:', error);
+                    });
+            }
+        });
+
+        document.addEventListener('click', function(event) {
+            if (event.target && event.target.classList.contains('delete-row')) {
+                event.target.closest('.form-row').remove();
+            }
+        });
+    </script>
+</body>
+</html>
